@@ -8,6 +8,7 @@ using namespace std;
 
 
 const float screenScaling = 1.25;
+const bool pokeDelay = true;
 
 struct ColorValues {
     int R, G, B;
@@ -46,6 +47,13 @@ namespace input {
         return ip;
     }
 
+    INPUT createMouseInput()
+    {
+        INPUT input{};
+        input.type = INPUT_MOUSE;
+        return input;
+    }
+
     void sendInput(INPUT &input, UINT ACTION)
     {
         input.mi.dwFlags = ACTION;
@@ -58,18 +66,15 @@ namespace input {
 void pressKey(WORD key)
 {
     INPUT input = input::createKeyboardInput(key);
-
     input::sendInput(input, KEYEVENTF_KEYDOWN);
     input::sendInput(input, KEYEVENTF_KEYUP);
 }
 
 void mouseClick(int x, int y)
 {
-    SetCursorPos(x/screenScaling, y/ screenScaling);
+    SetCursorPos(x/screenScaling, y/screenScaling);
 
-    INPUT input{};
-    input.type = INPUT_MOUSE;
-
+    INPUT input = input::createMouseInput();
     input::sendInput(input, MOUSEEVENTF_LEFTDOWN);
     input::sendInput(input, MOUSEEVENTF_LEFTUP);
 }
@@ -82,16 +87,14 @@ ColorValues getPixelColor(const int x, const int y)
     COLORREF pixel = GetPixel(hdcScreen, x, y);
     ReleaseDC(NULL, hdcScreen);
 
-    ColorValues pixelVal(GetRValue(pixel), GetGValue(pixel), GetBValue(pixel));
-    return pixelVal;
+    return { GetRValue(pixel), GetGValue(pixel), GetBValue(pixel) };
 }
 
 POINT getCursorPos()
 {
     POINT point;
     GetCursorPos(&point);
-    point.x *= screenScaling;
-    point.y *= screenScaling;
+    point = { int(point.x * screenScaling), int(point.y * screenScaling) };
     return point;
 }
 
@@ -106,14 +109,14 @@ POINT getCurrCursorPos()
 }
 
 
-int milisecondsToDelay(bool noDelay)
+int milisecondsToDelay(int maxMinutesDelay)
 {
-    if (noDelay)
-        return 2000; //delay needed for page to refresh
-
+    if (!pokeDelay)
+        return 4000; // estimated delay needed for page to refresh
+   
     srand(time(NULL));
-    int minToDelay = rand() % 10; // how many minutes you want to delay 
-    int secToDelay = rand() % 60; // how many seconds you want to delay 
+    int minToDelay = rand() % (maxMinutesDelay == 0 ? 1 : maxMinutesDelay); // how many minutes you want to delay 
+    int secToDelay = rand() % 60;                                           // how many seconds you want to delay 
     int milisecToDelay = secToDelay * 1000 + minToDelay * 60 * 1000;
 
     cout << "Total delay: " << minToDelay << "m " << secToDelay << "s "<< endl;
@@ -131,19 +134,33 @@ bool clickOnPoke(ColorValues pokeColor, int x, int y)
     return true;
 }
 
+void displayPokesCount(const int totalPokeCout)
+{
+    system("CLS");
+    cout << "Hold insert to stop the program." << endl;
+    cout << "Total poke cout: " << totalPokeCout << endl;
+}
+
 void invokePoking(int x, int y)
 {
+    bool didCountdownEnded = false;
+
     int totalPokeCout = 0;
     while (!GetAsyncKeyState(VK_INSERT))
     {
-        bool isPokeSuccessfull = /*clickOnPoke(getPixelColor(x,y), x, y);*// clickOnPoke(pokeColor, x, y) || clickOnPoke(pokeColorHover, x, y);
+        bool isPokeSuccessfull = clickOnPoke(pokeColor, x, y) || clickOnPoke(pokeColorHover, x, y);
         if (isPokeSuccessfull)
+        {
             totalPokeCout++;
-
-        system("CLS");
-        cout << "Hold insert to stop the program." << endl;
-        cout << "Total poke cout: " << totalPokeCout << endl;
-        Sleep(milisecondsToDelay(true));
+            displayPokesCount(totalPokeCout);
+            didCountdownEnded = false;
+            Sleep(6000);
+        }
+        else if(!didCountdownEnded)
+        {
+            Sleep(milisecondsToDelay(3));
+            didCountdownEnded = true;
+        }
     }
 }
 
